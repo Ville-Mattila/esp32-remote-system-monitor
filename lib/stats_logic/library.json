@@ -1,0 +1,6 @@
+{
+  "name": "stats_logic",
+  "version": "1.0.0",
+  "description": "Pure logic for the PC stats display: value parsing, history buffers, JSON extraction",
+  "dependencies": { "bblanchon/ArduinoJson": "^7.3.0" }
+}
