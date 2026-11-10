@@ -173,7 +173,8 @@ String setupDiscoverServer(Arduino_Canvas *c) {
     return ip;
 }
 
-void setupShowMessage(Arduino_Canvas *c, TouchInput &touch, const char *line1, const char *line2) {
+bool setupShowMessage(Arduino_Canvas *c, TouchInput &touch, const char *line1, const char *line2,
+                      uint32_t timeoutMs, const char *footer) {
     c->fillScreen(COL_BG);
     c->setTextSize(2);
     c->setTextColor(COL_ACCENT);
@@ -181,9 +182,14 @@ void setupShowMessage(Arduino_Canvas *c, TouchInput &touch, const char *line1, c
     c->setTextColor(COL_TEXT);
     c->setCursor(12, 170); if (line2) c->print(line2);
     c->setTextColor(COL_DIM);
-    c->setCursor(12, 330); c->print("tap to continue");
+    c->setCursor(12, 330); c->print(footer);
     c->flush();
-    while (touch.poll() != TouchEvent::Tap) delay(10);
+    uint32_t start = millis();
+    while (timeoutMs == 0 || millis() - start < timeoutMs) {
+        if (touch.poll() == TouchEvent::Tap) return true;
+        delay(10);
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------

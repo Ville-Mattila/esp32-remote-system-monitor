@@ -1,5 +1,6 @@
 #include "app_config.h"
 #include <Preferences.h>
+#include <esp_system.h>
 
 AppConfig appConfig;
 
@@ -19,6 +20,9 @@ void AppConfig::load() {
     password = prefs.getString("pass", "");
     serverHost = prefs.getString("server", "");
     rotation = prefs.getUChar("rot", 1);
+    crashCount = prefs.getUInt("crash_n", 0);
+    lastCrashReason = prefs.getUChar("crash_r", 0);
+    lastCrashUptimeS = prefs.getUInt("crash_up", 0);
     if (rotation != 1 && rotation != 3) rotation = 1;
     knownCount = prefs.getInt("known_n", 0);
     if (knownCount > MAX_KNOWN) knownCount = MAX_KNOWN;
@@ -84,6 +88,33 @@ void AppConfig::saveRotation(uint8_t r) {
     rotation = r;
     prefs.begin(NS, false);
     prefs.putUChar("rot", rotation);
+    prefs.end();
+}
+
+void AppConfig::recordResetReason() {
+    esp_reset_reason_t r = esp_reset_reason();
+    bool crash = r == ESP_RST_PANIC || r == ESP_RST_INT_WDT || r == ESP_RST_TASK_WDT ||
+                 r == ESP_RST_WDT || r == ESP_RST_BROWNOUT || r == ESP_RST_UNKNOWN;
+    prefs.begin(NS, false);
+    uint32_t prevUptime = prefs.getUInt("uptime", 0);
+    if (crash) {
+        crashCount++;
+        lastCrashReason = (uint8_t)r;
+        lastCrashUptimeS = prevUptime;
+        prefs.putUInt("crash_n", crashCount);
+        prefs.putUChar("crash_r", lastCrashReason);
+        prefs.putUInt("crash_up", lastCrashUptimeS);
+    }
+    prefs.putUInt("uptime", 0);
+    prefs.end();
+    Serial.printf("reset reason %d (%s), previous run ~%lu s, crashes so far %lu\n",
+                  (int)r, crash ? "CRASH" : "normal", (unsigned long)prevUptime,
+                  (unsigned long)crashCount);
+}
+
+void AppConfig::saveUptime(uint32_t seconds) {
+    prefs.begin(NS, false);
+    prefs.putUInt("uptime", seconds);
     prefs.end();
 }
 

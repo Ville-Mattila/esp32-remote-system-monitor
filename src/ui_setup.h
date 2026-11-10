@@ -16,8 +16,10 @@ String setupEnterPassword(Arduino_Canvas *c, TouchInput &touch, const String &ss
 bool setupConnectWifi(Arduino_Canvas *c, const String &ssid, const String &password,
                       uint32_t timeoutMs = 15000);
 
-// Full-screen message dismissed by a tap.
-void setupShowMessage(Arduino_Canvas *c, TouchInput &touch, const char *line1, const char *line2);
+// Full-screen message dismissed by a tap. With timeoutMs > 0 it also returns
+// on its own after that long (footer shows `footer`). Returns true if tapped.
+bool setupShowMessage(Arduino_Canvas *c, TouchInput &touch, const char *line1, const char *line2,
+                      uint32_t timeoutMs = 0, const char *footer = "tap to continue");
 
 // Runs the discovery sweep with a progress screen. Returns server IP or "".
 String setupDiscoverServer(Arduino_Canvas *c);

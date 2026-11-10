@@ -1,3 +1,4 @@
+#include <esp_system.h>
 #include "ui_pages.h"
 #include "ui_theme.h"
 #include "app_config.h"
@@ -153,6 +154,20 @@ void infoViewDraw(Arduino_Canvas *c, bool offline, int batteryPct) {
     String batt = batteryPct > 0 ? String(batteryPct) + "%" : String("--");
     snprintf(buf, sizeof(buf), "%s   FW %s", batt.c_str(), FW_VERSION);
     line("Battery", buf);
+    if (appConfig.crashCount > 0) {
+        const char *why = "?";
+        switch (appConfig.lastCrashReason) {
+            case ESP_RST_PANIC:    why = "panic"; break;
+            case ESP_RST_INT_WDT:  why = "int wdt"; break;
+            case ESP_RST_TASK_WDT: why = "task wdt"; break;
+            case ESP_RST_WDT:      why = "wdt"; break;
+            case ESP_RST_BROWNOUT: why = "brownout"; break;
+        }
+        snprintf(buf, sizeof(buf), "%lux, last %s @%luh",
+                 (unsigned long)appConfig.crashCount, why,
+                 (unsigned long)(appConfig.lastCrashUptimeS / 3600));
+        line("Crashes", buf);
+    }
     if (offline) {
         c->setTextColor(COL_ACCENT);
         c->setCursor(M + 8, y + 6);

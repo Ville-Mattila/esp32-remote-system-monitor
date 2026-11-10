@@ -62,6 +62,7 @@ static void runDashboard() {
     constexpr int N_PAGES = 4;
     bool offline = false;
     uint32_t lastFetch = 0, lastRediscover = 0, lastBatt = 0, lastTapMs = 0;
+    static uint32_t lastUptimeSave = 0;
 
     auto drawPage = [&]() {
         switch (page) {
@@ -89,6 +90,13 @@ static void runDashboard() {
             } else {
                 lastTapMs = millis();
             }
+        }
+
+        // Remember uptime every 10 min (cheap on flash wear) so the crash
+        // log can say how long the device ran before a crash.
+        if (millis() - lastUptimeSave >= 600000) {
+            lastUptimeSave = millis();
+            appConfig.saveUptime(millis() / 1000);
         }
 
         if (millis() - lastBatt >= 10000 || lastBatt == 0) {  // fuel gauge is slow-moving
@@ -141,6 +149,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("PC stats display booting...");
     appConfig.load();  // before boardInit: it provides the saved rotation
+    appConfig.recordResetReason();
     uiRotation = appConfig.rotation;
     boardInit();
     touch.begin(Touch.get());
@@ -152,17 +161,26 @@ void loop() {
     if (!appConfig.hasWifi()) {
         runWifiSetup();
     } else if (!setupConnectWifi(canvas, appConfig.ssid, appConfig.password)) {
-        setupShowMessage(canvas, touch, "Saved WiFi unreachable", appConfig.ssid.c_str());
-        runWifiSetup();
+        // Router may just be down (e.g. after a power cut): retry on our own,
+        // and only go to the network picker if the user asks for it.
+        if (setupShowMessage(canvas, touch, "Saved WiFi unreachable", appConfig.ssid.c_str(),
+                             30000, "retrying in 30 s - tap to pick")) {
+            runWifiSetup();
+        } else {
+            return;  // loop() runs again -> reconnect attempt
+        }
     }
 
     // Clock for the info page (Finland timezone, DST-aware).
     configTzTime("EET-2EEST,M3.5.0/3,M10.5.0/4", "pool.ntp.org");
 
+    // Keep retrying on our own: after a reboot the PC may be asleep or LHM
+    // not started yet. A tap retries immediately.
     while (!ensureServer()) {
         setupShowMessage(canvas, touch,
                          "No LibreHardwareMonitor found",
-                         "Tap to retry");
+                         "Is the PC on?",
+                         30000, "retrying in 30 s - tap to retry now");
     }
 
     runDashboard();  // returns on long-press
