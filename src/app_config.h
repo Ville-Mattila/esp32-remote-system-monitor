@@ -15,6 +15,7 @@ struct AppConfig {
     // Crash log: unexpected resets (panic, watchdog, brownout) since the
     // counter was created, and the reason for the most recent one.
     uint32_t crashCount = 0;
+    uint32_t powerOnCount = 0;     // power-loss restarts (not crashes)
     uint8_t lastCrashReason = 0;   // esp_reset_reason_t
     uint32_t lastCrashUptimeS = 0; // how long the previous run lasted (approx.)
 

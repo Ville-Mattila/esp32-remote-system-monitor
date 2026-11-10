@@ -3,7 +3,7 @@
 #include "stats_extract.h"
 #include "ui_dashboard.h"
 
-#define FW_VERSION "v1.3"
+#define FW_VERSION "v1.3.1"
 
 // Additional swipeable view pages. Like dashboardDraw, these render into the
 // canvas without flushing; the caller presents via presentCanvas().

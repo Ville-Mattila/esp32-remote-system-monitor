@@ -150,11 +150,14 @@ void infoViewDraw(Arduino_Canvas *c, bool offline, int batteryPct) {
     snprintf(buf, sizeof(buf), "%s  (%d dBm)", WiFi.SSID().c_str(), (int)WiFi.RSSI());
     line("WiFi", buf);
     line("Device IP", WiFi.localIP().toString());
-    line("PC", appConfig.serverHost.length() ? appConfig.serverHost : String("--"));
+    extern String serverDiag;
+    String pc = appConfig.serverHost.length() ? appConfig.serverHost : String("--");
+    if (serverDiag.startsWith("(")) pc += " " + serverDiag;  // e.g. "(3 tries)"
+    line("PC", pc);
     String batt = batteryPct > 0 ? String(batteryPct) + "%" : String("--");
     snprintf(buf, sizeof(buf), "%s   FW %s", batt.c_str(), FW_VERSION);
     line("Battery", buf);
-    if (appConfig.crashCount > 0) {
+    if (appConfig.crashCount > 0 || appConfig.powerOnCount > 0) {
         const char *why = "?";
         switch (appConfig.lastCrashReason) {
             case ESP_RST_PANIC:    why = "panic"; break;
@@ -163,10 +166,13 @@ void infoViewDraw(Arduino_Canvas *c, bool offline, int batteryPct) {
             case ESP_RST_WDT:      why = "wdt"; break;
             case ESP_RST_BROWNOUT: why = "brownout"; break;
         }
-        snprintf(buf, sizeof(buf), "%lux, last %s @%luh",
-                 (unsigned long)appConfig.crashCount, why,
-                 (unsigned long)(appConfig.lastCrashUptimeS / 3600));
-        line("Crashes", buf);
+        // e.g. "4 power, 1 panic @41h" (hours = uptime before that crash)
+        int n = snprintf(buf, sizeof(buf), "%lu power", (unsigned long)appConfig.powerOnCount);
+        if (appConfig.crashCount > 0)
+            snprintf(buf + n, sizeof(buf) - n, ", %lu %s @%luh",
+                     (unsigned long)appConfig.crashCount, why,
+                     (unsigned long)(appConfig.lastCrashUptimeS / 3600));
+        line("Restarts", buf);
     }
     if (offline) {
         c->setTextColor(COL_ACCENT);

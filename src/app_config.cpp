@@ -21,6 +21,7 @@ void AppConfig::load() {
     serverHost = prefs.getString("server", "");
     rotation = prefs.getUChar("rot", 1);
     crashCount = prefs.getUInt("crash_n", 0);
+    powerOnCount = prefs.getUInt("pwr_n", 0);
     lastCrashReason = prefs.getUChar("crash_r", 0);
     lastCrashUptimeS = prefs.getUInt("crash_up", 0);
     if (rotation != 1 && rotation != 3) rotation = 1;
@@ -97,6 +98,10 @@ void AppConfig::recordResetReason() {
                  r == ESP_RST_WDT || r == ESP_RST_BROWNOUT || r == ESP_RST_UNKNOWN;
     prefs.begin(NS, false);
     uint32_t prevUptime = prefs.getUInt("uptime", 0);
+    if (r == ESP_RST_POWERON) {  // power lost (e.g. monitor USB port switched off)
+        powerOnCount++;
+        prefs.putUInt("pwr_n", powerOnCount);
+    }
     if (crash) {
         crashCount++;
         lastCrashReason = (uint8_t)r;

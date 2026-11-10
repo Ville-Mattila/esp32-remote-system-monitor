@@ -42,9 +42,31 @@ static void runWifiSetup() {
     }
 }
 
+// Boot diagnostics (shown on screen): why the saved PC didn't answer, and
+// how many tries it took when it did.
+String serverDiag;
+static uint32_t wifiUpAtMs = 0;
+
 // Ensures a server is known and answering; runs discovery as needed.
+// The saved PC is tried several times first: right after joining WiFi the
+// first attempts sometimes fail even though the PC is up.
 static bool ensureServer() {
-    if (appConfig.hasServer() && verifyLHM(appConfig.serverHost, 8085)) return true;
+    if (appConfig.hasServer()) {
+        String why;
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            if (verifyLHM(appConfig.serverHost, 8085, &why)) {
+                serverDiag = attempt == 1 ? String("") : "(" + String(attempt) + " tries)";
+                Serial.printf("server: %s ok on try %d, %lu ms after WiFi up\n",
+                              appConfig.serverHost.c_str(), attempt,
+                              (unsigned long)(millis() - wifiUpAtMs));
+                return true;
+            }
+            Serial.printf("server: try %d failed: %s (%lu ms after WiFi up)\n", attempt,
+                          why.c_str(), (unsigned long)(millis() - wifiUpAtMs));
+            serverDiag = why + " @" + String((millis() - wifiUpAtMs) / 1000) + "s";
+            if (attempt < 5) delay(2000);
+        }
+    }
     String ip = setupDiscoverServer(canvas);
     if (ip.length() == 0) return false;
     appConfig.saveServer(ip);
@@ -98,6 +120,13 @@ static void runDashboard() {
             lastUptimeSave = millis();
             appConfig.saveUptime(millis() / 1000);
         }
+        static uint32_t lastHeapLog = 0;
+        if (millis() - lastHeapLog >= 60000) {  // leak watch for crash hunting
+            lastHeapLog = millis();
+            Serial.printf("heap: free %u, min %u, largest %u, psram %u, up %lu s\n",
+                          ESP.getFreeHeap(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap(),
+                          ESP.getFreePsram(), (unsigned long)(millis() / 1000));
+        }
 
         if (millis() - lastBatt >= 10000 || lastBatt == 0) {  // fuel gauge is slow-moving
             lastBatt = millis();
@@ -127,6 +156,7 @@ static void runDashboard() {
                     lastRediscover = millis();
                     String ip = setupDiscoverServer(canvas);
                     if (ip.length()) {
+                        serverDiag = "(found by scan)";
                         appConfig.saveServer(ip);
                         statsClient.begin(ip);
                         failStreak = 0;
@@ -147,6 +177,9 @@ static void runDashboard() {
 
 void setup() {
     Serial.begin(115200);
+    // When on a PC's USB, give the serial monitor a moment to attach so boot
+    // logs aren't lost. On a power-only port this just times out.
+    for (uint32_t t0 = millis(); !Serial && millis() - t0 < 3000;) delay(10);
     Serial.println("PC stats display booting...");
     appConfig.load();  // before boardInit: it provides the saved rotation
     appConfig.recordResetReason();
@@ -171,6 +204,9 @@ void loop() {
         }
     }
 
+    wifiUpAtMs = millis();
+    Serial.printf("wifi: up, ip %s, rssi %d\n", WiFi.localIP().toString().c_str(), (int)WiFi.RSSI());
+
     // Clock for the info page (Finland timezone, DST-aware).
     configTzTime("EET-2EEST,M3.5.0/3,M10.5.0/4", "pool.ntp.org");
 
@@ -179,7 +215,7 @@ void loop() {
     while (!ensureServer()) {
         setupShowMessage(canvas, touch,
                          "No LibreHardwareMonitor found",
-                         "Is the PC on?",
+                         serverDiag.length() ? serverDiag.c_str() : "Is the PC on?",
                          30000, "retrying in 30 s - tap to retry now");
     }
 

@@ -4,13 +4,17 @@
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
 
-bool verifyLHM(const String &host, uint16_t port) {
+bool verifyLHM(const String &host, uint16_t port, String *why) {
+    uint32_t t0 = millis();
     HTTPClient http;
     WiFiClient client;
     http.setConnectTimeout(1200);
     http.setTimeout(1500);
     http.useHTTP10(true);
-    if (!http.begin(client, "http://" + host + ":" + String(port) + "/data.json")) return false;
+    if (!http.begin(client, "http://" + host + ":" + String(port) + "/data.json")) {
+        if (why) *why = "bad URL";
+        return false;
+    }
     int code = http.GET();
     bool ok = false;
     if (code == 200) {
@@ -22,6 +26,11 @@ bool verifyLHM(const String &host, uint16_t port) {
              strstr((const char *)buf, "\"id\":0") != nullptr;
     }
     http.end();
+    if (!ok && why) {
+        // Negative codes are HTTPClient errors: -1 = couldn't connect, -11 = read timeout.
+        *why = code == 200 ? String("not LHM") : "HTTP " + String(code);
+        *why += " (" + String(millis() - t0) + " ms)";
+    }
     return ok;
 }
 

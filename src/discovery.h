@@ -10,4 +10,5 @@ String discoverLHM(uint16_t port,
 
 // True if host:port answers data.json with LHM-shaped JSON. Used by discovery
 // and by the dashboard to validate a saved server.
-bool verifyLHM(const String &host, uint16_t port);
+// If `why` is given, a failure reason is written there (e.g. "HTTP -1 (1201 ms)").
+bool verifyLHM(const String &host, uint16_t port, String *why = nullptr);
